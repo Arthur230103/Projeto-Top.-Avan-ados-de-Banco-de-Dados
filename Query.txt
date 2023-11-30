@@ -1,0 +1,217 @@
+1)Escreva uma query que retorna qual estudante fez qual disciplina do próprio orientador. Retorne apenas o nome do estudante, do professor e da disciplina.
+
+db.students.aggregate([
+  {
+    $lookup: {
+      from: "advisor",
+      localField: "ID",
+      foreignField: "s_ID",
+      as: "advisor"
+    }
+  },
+  {
+    $unwind: "$advisor"
+  },
+  {
+    $lookup: {
+      from: "instructor",
+      localField: "advisor.i_ID",
+      foreignField: "ID",
+      as: "instructor"
+    }
+  },
+  {
+    $unwind: "$instructor"
+  },
+  {
+    $lookup: {
+      from: "teaches",
+      localField: "instructor.ID",
+      foreignField: "ID",
+      as: "teaches"
+    }
+  },
+  {
+    $unwind: "$teaches"
+  },
+  {
+    $lookup: {
+      from: "section",
+      let: {
+        course_id: "$teaches.course_id",
+        sec_id: "$teaches.sec_id",
+        semester: "$teaches.semester",
+        year: "$teaches.year"
+      },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: ["$course_id", "$$course_id"] },
+                { $eq: ["$sec_id", "$$sec_id"] },
+                { $eq: ["$semester", "$$semester"] },
+                { $eq: ["$year", "$$year"] }
+              ]
+            }
+          }
+        }
+      ],
+      as: "section"
+    }
+  },
+  {
+    $unwind: "$section"
+  },
+  {
+    $lookup: {
+      from: "course",
+      localField: "section.course_id",
+      foreignField: "course_id",
+      as: "course"
+    }
+  },
+  {
+    $unwind: "$course"
+  },
+  {
+    $project: {
+      _id: 0,
+      Estudante: "$name",
+      Professor: "$instructor.name",
+      Disciplina: "$course.title"
+    }
+  },
+  {
+    $sort: {
+      Estudante: 1,
+      Professor: 1,
+      Disciplina: 1
+    }
+  }
+])
+
+
+2)Qual sala (prédio e número) cada professor dá aula?
+
+db.instructor.aggregate([
+    {
+        $lookup: {
+            from: "teaches",
+            localField: "ID",
+            foreignField: "ID",
+            as: "teaches"
+        }
+    },
+    {
+        $unwind: "$teaches"
+    },
+    {
+        $lookup: {
+            from: "section",
+            let: {
+                course_id: "$teaches.course_id",
+                sec_id: "$teaches.sec_id",
+                semester: "$teaches.semester",
+                year: "$teaches.year"
+            },
+            pipeline: [
+                {
+                    $match: {
+                        $expr: {
+                            $and: [
+                                { $eq: ["$course_id", "$$course_id"] },
+                                { $eq: ["$sec_id", "$$sec_id"] },
+                                { $eq: ["$semester", "$$semester"] },
+                                { $eq: ["$year", "$$year"] }
+                            ]
+                        }
+                    }
+                }
+            ],
+            as: "section"
+        }
+    },
+    {
+        $unwind: "$section"
+    },
+    {
+        $lookup: {
+            from: "classroom",
+            let: {
+                building: "$section.building",
+                room_number: "$section.room_number"
+            },
+            pipeline: [
+                {
+                    $match: {
+                        $expr: {
+                            $and: [
+                                { $eq: ["$building", "$$building"] },
+                                { $eq: ["$room_number", "$$room_number"] }
+                            ]
+                        }
+                    }
+                }
+            ],
+            as: "classroom"
+        }
+    },
+    {
+        $unwind: "$classroom"
+    },
+    {
+        $group: {
+            _id: "$ID",
+            Professor_Name: { $first: "$name" },
+            Buildings: { $addToSet: "$classroom.building" },
+            Room_Numbers: { $addToSet: "$classroom.room_number" }
+        }
+    }
+])
+
+
+3)Qual o nome, orçamento, total de alunos e salário médio de cada departamento?
+
+db.department.aggregate([
+  {
+    $lookup: {
+      from: "student",
+      localField: "dept_name",
+      foreignField: "dept_name",
+      as: "students"
+    }
+  },
+  {
+    $lookup: {
+      from: "instructor",
+      localField: "dept_name",
+      foreignField: "dept_name",
+      as: "instructors"
+    }
+  },
+  {
+    $project: {
+      dept_name: 1,
+      budget: 1,
+      total_alunos: { $size: "$students" },
+      salario_medio: { $avg: "$instructors.salary" }
+    }
+  },
+  {
+    $group: {
+      _id: { dept_name: "$dept_name", budget: "$budget" },
+      total_alunos: { $sum: "$total_alunos" },
+      salario_medio: { $avg: "$salario_medio" }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      dept_name: "$_id.dept_name",
+      budget: "$_id.budget",
+      total_alunos: 1,
+      salario_medio: { $round: ["$salario_medio", 3] }
+    }
+  }
+])
