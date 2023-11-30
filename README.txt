@@ -1,0 +1,1 @@
+O banco NOSQL escolhido foi o MongoDB. Após serem criadas as tabelas e inseridas as informações disponibilizadas na base de dados de exemplo do livro e feita a consulta utilizando as querys e retornando as informações conforme desejado na atividade 1, porém utilizando NOSQL.
